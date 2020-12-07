@@ -210,6 +210,9 @@ end
 @generated pair(::Val{k}, v, x=nothing) where k = :($k = v,)
 @generated pair(::Val{k}, v, x::NamedTuple{keys}) where {k,keys} = k isa Int ? :($(getfield(keys, k)) = v,) : :($k = v,)
 
+function _pullback(ctx::AContext, ::typeof(literal_getproperty), t::Tuple, i::Val, ::typeof(getfield))
+    return _pullback(ctx, literal_getindex, t, i)
+end
 @adjoint function literal_getproperty(x, ::Val{f}, getproperty=getproperty) where f
   val = getproperty(x, f)
   function back(Δ)
