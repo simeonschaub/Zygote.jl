@@ -143,8 +143,14 @@ end
 @adjoint Core.getfield(xs::NTuple{N,Any}, i::Int) where N =
   (xs[i], Δ -> (ntuple(j -> i == j ? Δ : nothing, Val(N)), nothing))
 
+_pullback(ctx::Context, ::typeof(getfield), t::Tuple, i::Int) =
+  invoke(_pullback, Tuple{AContext,typeof(getfield),NTuple{N,Any},Int} where N, ctx, getfield, t, i)
+
 @adjoint Core.getfield(xs::NamedTuple{K,<:NTuple{N,Any}}, i::Int) where {K,N} =
   (xs[i], Δ -> (NamedTuple{K}(ntuple(j -> i == j ? Δ : nothing, Val(N))), nothing))
+
+_pullback(ctx::Context, ::typeof(getfield), t::NamedTuple{K,<:NTuple{N,Any}}, i::Int) where {K,N} =
+  invoke(_pullback, Tuple{AContext,typeof(getfield),NamedTuple{K,<:NTuple{N,Any}},Int} where {K,N}, ctx, getfield, t, i)
 
 @adjoint function Base.first(xs::Tuple)
   drest = map(_->nothing, tail(xs))
@@ -211,7 +217,6 @@ end
 @generated pair(::Val{k}, v, x::NamedTuple{keys}) where {k,keys} = k isa Int ? :($(getfield(keys, k)) = v,) : :($k = v,)
 
 @adjoint function literal_getproperty(x, ::Val{f}, getproperty=getproperty) where f
-  #@show x f getproperty
   val = getproperty(x, f)
   function back(Δ)
     accum_param(__context__, val, Δ) === nothing && return
@@ -226,34 +231,15 @@ end
   unwrap(val), back
 end
 
-#@adjoint function getfield(x, f::Symbol)
-#  val = getfield(x, f)
-#  function back(Δ)
-#    accum_param(__context__, val, Δ) === nothing && return
-#    if isimmutable(x)
-#      ((;nt_nothing(x)...,pair(Val(f), Δ)...), nothing)
-#    else
-#      dx = grad_mut(__context__, x)
-#      dx[] = (;dx[]...,pair(Val(f),accum(getfield(dx[], f), Δ))...)
-#      return (dx,nothing)
-#    end
-#  end
-#  unwrap(val), back
-#end
-
 _pullback(cx::Context, ::typeof(getproperty), x, f::Symbol) =
   _pullback(cx, literal_getproperty, x, Val(f))
 
-_pullback(cx::Context, ::typeof(getfield), x, f::Symbol) =
-  _pullback(cx, literal_getproperty, x, Val(f), getfield)
-
-_pullback(cx::AContext, ::typeof(getfield), x, f::Union{Symbol,Int}) =
+_pullback(cx::Context, ::typeof(getfield), x, f) =
   _pullback(cx, literal_getproperty, x, Val(f), getfield)
 
 _pullback(cx::Context, ::typeof(literal_getindex), x::NamedTuple, ::Val{f}) where f =
   _pullback(cx, literal_getproperty, x, Val(f))
 
-#_pullback(cx::Context, ::typeof(literal_getproperty), x::Tuple, ::Val{f}, ::typeof(getfield)) where f =
 _pullback(cx::Context, ::typeof(literal_getproperty), x::Tuple, ::Val{f}, _=nothing) where f =
   _pullback(cx, literal_getindex, x, Val(f))
 

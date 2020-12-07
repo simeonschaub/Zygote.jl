@@ -136,3 +136,5 @@ end
     end
     return getfield(p, i), pair_getfield
 end
+_pullback(ctx::Context, ::typeof(getfield), p::Pair, i::Int) =
+    invoke(_pullback, Tuple{AContext,typeof(getfield),Pair,Int}, ctx, getfield, p, i)
