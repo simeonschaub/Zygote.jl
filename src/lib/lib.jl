@@ -218,7 +218,7 @@ end
       ((;nt_nothing(x)...,pair(Val(f), Δ, x)...), nothing)
     else
       dx = grad_mut(__context__, x)
-      dx[] = (;dx[]...,pair(Val(f),accum(getfield(dx[], f), Δ, x))...)
+      dx[] = (;dx[]...,pair(Val(f),accum(getfield(dx[], f), Δ))...)
       return (dx,nothing)
     end
   end
