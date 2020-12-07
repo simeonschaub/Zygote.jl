@@ -210,9 +210,6 @@ end
 @generated pair(::Val{k}, v, x=nothing) where k = :($k = v,)
 @generated pair(::Val{k}, v, x::NamedTuple{keys}) where {k,keys} = k isa Int ? :($(getfield(keys, k)) = v,) : :($k = v,)
 
-function _pullback(ctx::AContext, ::typeof(literal_getproperty), t::Tuple, i::Val, ::typeof(getfield))
-    return _pullback(ctx, literal_getindex, t, i)
-end
 @adjoint function literal_getproperty(x, ::Val{f}, getproperty=getproperty) where f
   val = getproperty(x, f)
   function back(Δ)
@@ -221,7 +218,7 @@ end
       ((;nt_nothing(x)...,pair(Val(f), Δ, x)...), nothing)
     else
       dx = grad_mut(__context__, x)
-      dx[] = (;dx[]...,pair(Val(f),accum(getfield(dx[], f), Δ))...)
+      dx[] = (;dx[]...,pair(Val(f),accum(getfield(dx[], f), Δ, x))...)
       return (dx,nothing)
     end
   end
@@ -247,12 +244,13 @@ _pullback(cx::Context, ::typeof(getproperty), x, f::Symbol) =
   _pullback(cx, literal_getproperty, x, Val(f))
 
 _pullback(cx::Context, ::typeof(getfield), x, f::Symbol) =
+_pullback(cx::Context, ::typeof(getfield), x, f::Union{Symbol,Int}) =
   _pullback(cx, literal_getproperty, x, Val(f), getfield)
 
 _pullback(cx::Context, ::typeof(literal_getindex), x::NamedTuple, ::Val{f}) where f =
   _pullback(cx, literal_getproperty, x, Val(f))
 
-_pullback(cx::Context, ::typeof(literal_getproperty), x::Tuple, ::Val{f}) where f =
+_pullback(cx::Context, ::typeof(literal_getproperty), x::Tuple, ::Val{f}, ::typeof(getfield)) where f =
   _pullback(cx, literal_getindex, x, Val(f))
 
 grad_mut(x) = Ref{Any}(nt_nothing(x))
