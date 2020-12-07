@@ -143,14 +143,14 @@ end
 @adjoint Core.getfield(xs::NTuple{N,Any}, i::Int) where N =
   (xs[i], Δ -> (ntuple(j -> i == j ? Δ : nothing, Val(N)), nothing))
 
-_pullback(ctx::Context, ::typeof(getfield), t::Tuple, i::Int) =
-  invoke(_pullback, Tuple{AContext,typeof(getfield),NTuple{N,Any},Int} where N, ctx, getfield, t, i)
+#_pullback(ctx::Context, ::typeof(getfield), t::Tuple, i::Int) =
+#  invoke(_pullback, Tuple{AContext,typeof(getfield),NTuple{N,Any},Int} where N, ctx, getfield, t, i)
 
 @adjoint Core.getfield(xs::NamedTuple{K,<:NTuple{N,Any}}, i::Int) where {K,N} =
   (xs[i], Δ -> (NamedTuple{K}(ntuple(j -> i == j ? Δ : nothing, Val(N))), nothing))
 
-_pullback(ctx::Context, ::typeof(getfield), t::NamedTuple{K,<:NTuple{N,Any}}, i::Int) where {K,N} =
-  invoke(_pullback, Tuple{AContext,typeof(getfield),NamedTuple{K,<:NTuple{N,Any}},Int} where {K,N}, ctx, getfield, t, i)
+#_pullback(ctx::Context, ::typeof(getfield), t::NamedTuple{K,<:NTuple{N,Any}}, i::Int) where {K,N} =
+#  invoke(_pullback, Tuple{AContext,typeof(getfield),NamedTuple{K,<:NTuple{N,Any}},Int} where {K,N}, ctx, getfield, t, i)
 
 @adjoint function Base.first(xs::Tuple)
   drest = map(_->nothing, tail(xs))
@@ -234,7 +234,7 @@ end
 _pullback(cx::Context, ::typeof(getproperty), x, f::Symbol) =
   _pullback(cx, literal_getproperty, x, Val(f))
 
-_pullback(cx::Context, ::typeof(getfield), x, f) =
+_pullback(cx::Context, ::typeof(getfield), x, f::Symbol) =
   _pullback(cx, literal_getproperty, x, Val(f), getfield)
 
 _pullback(cx::Context, ::typeof(literal_getindex), x::NamedTuple, ::Val{f}) where f =

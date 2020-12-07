@@ -67,7 +67,10 @@ using ..Zygote: literal_getproperty, literal_getindex
 _pushforward(dargs, ::typeof(getproperty), x, f) =
   _pushforward(dargs, literal_getproperty, x, Val(f))
 
-@tangent function literal_getproperty(t, ::Val{i}) where i
+_pushforward(dargs, ::typeof(getfield), x, f) =
+  _pushforward(dargs, literal_getproperty, x, Val(f))#, getfield)
+
+@tangent function literal_getproperty(t, ::Val{i}#=, getproperty=getproperty=#) where i
   y = getproperty(t, i)
   forw(ṫ, _) = getproperty(ṫ, i)
   forw(ṫ::Nothing, _) = zerolike(y)
