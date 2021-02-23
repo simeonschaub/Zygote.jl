@@ -210,6 +210,42 @@ end
 @generated pair(::Val{k}, v, _=nothing) where k = :($k = v,)
 @generated pair(::Val{k}, v, ::NamedTuple{keys}) where {k,keys} = k isa Int ? :($(getfield(keys, k)) = v,) : :($k = v,)
 
+# ugly hack to make differentiating `getproperty` infer a lot better
+@generated function _pullback(cx::AContext, ::typeof(literal_getproperty), x, ::Val{f}) where f
+    sig(x) = Tuple{x, typeof(f)}
+    pb_sig(x) = Tuple{cx, typeof(getproperty), x, typeof(f)}
+
+    # either `getproperty` has a custom implementation or `_pullback(cx, ::getproperty, x, f)`
+    # is overloaded directly
+    is_getfield_fallback = which(_pullback, pb_sig(x)) == which(_pullback, pb_sig(Any)) && 
+        which(getproperty, sig(x)) == which(getproperty, sig(Any))
+
+    if is_getfield_fallback
+        # just copy pullback of `literal_getfield`
+        _sig = Tuple{cx, typeof(literal_getfield), x, Val{f}}
+        ci = code_lowered(_pullback, _sig)[1]
+
+        Meta.partially_inline!(
+            ci.code, Any[_pullback, Core.SlotNumber(2), literal_getfield],
+            Tuple{typeof(_pullback), _sig.parameters...}, Any[_sig.parameters...],
+            0, 0, :propagate,
+        )
+
+        # backedge for `getproperty`
+        mi_getproperty = Core.Compiler.method_instances(getproperty, sig(x))
+        ci.edges = append!(something(ci.edges, Core.MethodInstance[]), mi_getproperty)
+
+        # backedge for `_pullback`
+        mi_pb_getproperty = Core.Compiler.method_instances(_pullback, pb_sig(x))
+        append!(ci.edges, mi_pb_getproperty)
+
+        return ci
+    else
+        # nothing to optimize here, need to recurse into `getproperty`
+        return :(Zygote._pullback(cx, getproperty, x, $(QuoteNode(f))))
+    end
+end
+
 @adjoint function literal_getfield(x, ::Val{f}) where f
   val = getfield(x, f)
   function back(Δ)
